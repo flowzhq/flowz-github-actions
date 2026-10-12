@@ -24,5 +24,5 @@ onboarding, and a copy-paste workflow example.
 These actions are **thin wrappers**: composite actions must live in a public
 repo to be referenced from other repos, so the recipes live here — but they
 only pull the private, pre-built Flowz binaries from GHCR (access controlled
-by a flowzhq-issued `read:packages` token) and invoke them. No product logic
+by the `read:packages` token Flowz issues each customer) and invoke them. No product logic
 lives in this repo; the engines stay in Flowz's private repositories.
