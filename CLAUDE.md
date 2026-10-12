@@ -12,7 +12,9 @@ real product logic stays in the private engine repos: `flowzhq/flowz-app`
 (scanner), `flowzhq/fsg-enricher` (enricher), `flowzhq/flowz-ci-integration`
 (the `flowz-ci` orchestrator). See ADR-001.
 
-There is nothing to build or test here — it's YAML + bash + docs. No Makefile.
+There is nothing to build here — it's YAML + bash + docs. No Makefile. The one
+test, run after touching `write-license.sh`:
+`bash flowz-ci-integration/scripts/write-license.test.sh`.
 
 ## 2. Layout
 
