@@ -24,6 +24,10 @@ inputs:
   artifacts-token:
     description: "Customer-org PAT with contents:write on the artifacts repo. Pass a secret. Required unless dry-run."
     required: false
+  license:
+    description: "The CI license file Flowz issued you, base64-encoded (recommended: one line, masked exactly) or raw JSON. Pass a secret (secrets.FLOWZ_LICENSE). Written to a 0600 file under RUNNER_TEMP for the run step only and exported as FLOWZ_LICENSE. Required unless dry-run."
+    required: false
+    default: ""
   artifacts-repo:
     description: "Artifacts repo as owner/name (or full clone URL). Default: <owner>/.flowz-artifacts."
     required: false
@@ -128,8 +132,22 @@ runs:
         FLOWZ_CI_EXTERNAL_CONFIG_REPO: ${{ inputs.external-config-repo }}
         FLOWZ_CI_EXTERNAL_CONFIG_FILES: ${{ inputs.external-config-files }}
         FLOWZ_CI_EXTERNAL_CONFIG_TOKEN: ${{ inputs.external-config-token }}
+        # The license content; written to a file below and unset before flowz-ci runs.
+        FLOWZ_LICENSE_INPUT: ${{ inputs.license }}
       run: |
         set -euo pipefail
+        # flowz reads its license from the file FLOWZ_LICENSE names (exit 77
+        # without one). write-license.sh accepts base64 (preferred) or raw JSON.
+        # The file lives under RUNNER_TEMP, mode 0600, for this step only.
+        if [ -n "$FLOWZ_LICENSE_INPUT" ] && [ "$DRY_RUN" != "true" ]; then
+          lic="$(umask 077 && mktemp "${RUNNER_TEMP:-/tmp}/flowz-license.XXXXXX")"
+          trap 'rm -f "$lic"' EXIT
+          bash "${{ github.action_path }}/scripts/write-license.sh" "$lic"
+          export FLOWZ_LICENSE="$lic"
+        elif [ "$DRY_RUN" != "true" ]; then
+          echo "::warning::no license input — flowz will refuse to run (exit 77). Pass license: secrets.FLOWZ_LICENSE (see the action README)."
+        fi
+        unset FLOWZ_LICENSE_INPUT
         # flowz-ci commits/rebases the artifacts repo via git. CI runners have no
         # default git identity, so the rebase-on-conflict path (two repos in a
         # system push to the shared artifacts repo concurrently) dies with

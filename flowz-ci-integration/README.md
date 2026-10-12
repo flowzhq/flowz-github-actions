@@ -66,6 +66,7 @@ jobs:
           registry-user: ${{ vars.FLOWZ_REGISTRY_USER }}
           registry-token: ${{ secrets.FLOWZ_REGISTRY_TOKEN }}
           artifacts-token: ${{ secrets.FLOWZ_ARTIFACTS_TOKEN }}
+          license: ${{ secrets.FLOWZ_LICENSE }}
           # Pin the tool versions flowz support gave you:
           flowz-ci-version: v0.1.0
           scanner-version: v0.1.0
@@ -123,11 +124,35 @@ artifacts PAT from step 3 on the repo that will run the action:
 gh variable set FLOWZ_REGISTRY_USER  --body  "<GHCR username flowzhq gave you>"
 gh secret   set FLOWZ_REGISTRY_TOKEN --body  "<GHCR read:packages token flowzhq gave you>"
 gh secret   set FLOWZ_ARTIFACTS_TOKEN --body "<your-org PAT, contents:write on .flowz-artifacts>"
+base64 -w0 license.json | gh secret set FLOWZ_LICENSE
 ```
 
 Then add the workflow above as `.github/workflows/flowz-ci.yml` and pin the
 versions. Optionally add a `.flowz.yml` at your repo root to declare systems, a
 scan path, or extra change-detection excludes.
+
+## Secrets
+
+| Secret | Input | What it is |
+| --- | --- | --- |
+| `FLOWZ_REGISTRY_TOKEN` | `registry-token` | read:packages token Flowz issued you |
+| `FLOWZ_ARTIFACTS_TOKEN` | `artifacts-token` | your-org PAT, contents:write on the artifacts repo |
+| `FLOWZ_LICENSE` | `license` | the CI license file Flowz issued you |
+
+**The license.** `flowz` refuses to run without a valid license (exit 77), and
+`flowz-ci` then fails with an error naming the `license` input. Store the file
+base64-encoded:
+
+```bash
+base64 -w0 license.json | gh secret set FLOWZ_LICENSE   # macOS: base64 -i license.json
+```
+
+GitHub masks a secret's value in logs line by line and warns against structured
+values such as JSON; base64 makes the secret one opaque line, masked exactly. Raw
+JSON (`gh secret set FLOWZ_LICENSE < license.json`) is also accepted. The action
+writes the decoded file to `$RUNNER_TEMP` with mode 0600, exports its path as
+`FLOWZ_LICENSE` to the run step only, and deletes it when the step ends. A
+`dry-run` needs no license.
 
 ## Requirements
 
@@ -152,6 +177,7 @@ scan path, or extra change-detection excludes.
 | --- | --- | --- |
 | `registry-user` / `registry-token` | yes | flowzhq GHCR creds (read:packages) |
 | `artifacts-token` | yes (real runs) | customer-org PAT, contents:write on the artifacts repo |
+| `license` | yes (real runs) | the CI license file, base64 or raw JSON, from a secret (see Secrets) |
 | `artifacts-repo` | no | default `<owner>/.flowz-artifacts` |
 | `flowz-ci-version` | no (`latest`) | pin in production |
 | `scanner-version` / `enricher-version` | yes (real runs) | pinned GHCR tags |
