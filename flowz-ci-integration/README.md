@@ -4,13 +4,14 @@ A composite GitHub Action that keeps your Flowz architecture artifacts fresh.
 On every PR in your repo it:
 
 1. checks whether source code changed (doc-only PRs are skipped),
-2. scans the repo into FSG files (the `flowz` scanner),
+2. scans the repo into FSG files (`flowz system build`),
 3. pushes them to your artifacts repo under `repos/<repo>/fsg/` *(parallel, non-blocking)*,
-4. enriches each FSG into an eFSG (`fsg-enricher`),
+4. enriches each FSG into an eFSG (the same build, with the analyzer embedded in `flowz`),
 5. pushes those under `repos/<repo>/efsg/` *(parallel, non-blocking)*,
 6. resolves the systems the repo belongs to (`.flowz.yml` ∪ `systems.yaml` on the
    artifacts repo's `config` branch),
-7. recomputes each system's view, fed all member repos' eFSGs,
+7. recomputes each system's view (`flowz system build --from-efsg`), fed all member
+   repos' eFSGs,
 8. pushes `systems/<system>/system-view.json` *(blocking — this is the product output)*, and
 9. posts (or updates in place) a PR comment linking each recomputed system to its
    [flowz-viewer](https://flowzhq.github.io/viewer/) architecture view *(non-blocking)*, and
@@ -29,8 +30,9 @@ history is the artifact version history.
 > the artifacts repo (see the `.flowz-artifacts` README).
 
 The action is a thin wrapper: it pulls the private, pre-built Flowz binaries
-(`flowz-ci`, the `flowz` scanner, `fsg-enricher`) from GHCR with `oras`, using the
-`read:packages` token flowz issues you, then runs them on your runner. Your code
+(`flowz-ci` and `flowz`) from the one package `ghcr.io/flowzhq/flowz-cli` with
+`oras`, using the `read:packages` token Flowz issues you, then runs them on your
+runner. Your code
 never leaves your CI; no Flowz server is in the loop.
 
 ## Usage
@@ -61,16 +63,14 @@ jobs:
         with:
           fetch-depth: 0 # change detection needs the merge-base with the target branch
 
-      - uses: flowzhq/github-actions/flowz-ci-integration@v0.1.1
+      - uses: flowzhq/github-actions/flowz-ci-integration@v0.4.0
         with:
-          registry-user: ${{ vars.FLOWZ_REGISTRY_USER }}
-          registry-token: ${{ secrets.FLOWZ_REGISTRY_TOKEN }}
+          registry-token: ${{ secrets.FLOWZ_TOKEN }}
           artifacts-token: ${{ secrets.FLOWZ_ARTIFACTS_TOKEN }}
           license: ${{ secrets.FLOWZ_LICENSE }}
-          # Pin the tool versions flowz support gave you:
-          flowz-ci-version: v0.1.0
-          scanner-version: v0.1.0
-          enricher-version: v0.1.0
+          # Pin the versions Flowz support gave you:
+          flowz-ci-version: v0.6.0
+          scanner-version: v0.5.0-rc.2
           # artifacts-repo: my-org/.flowz-artifacts   # default: <owner>/.flowz-artifacts
           # skip-change-check: "true"                 # e.g. for workflow_dispatch reruns
 ```
@@ -84,16 +84,19 @@ that configures its own `user.name`/`user.email` first still wins.
 
 - the action itself — `flowzhq/github-actions/flowz-ci-integration@vX.Y.Z`
   (tags cover this whole repo); don't track `main`,
-- `flowz-ci-version` / `scanner-version` / `enricher-version` — the GHCR tags
-  flowz support gives you. `flowz-ci-version` defaults to `latest` as a
-  convenience mirror only; `scanner-version` and `enricher-version` are
-  required for real runs (only `dry-run` works without them).
+- `flowz-ci-version` / `scanner-version` — the versions Flowz support gives you.
+  `flowz-ci-version` defaults to the one the action tag was tested with;
+  `scanner-version` (the `flowz` CLI, at least `v0.5.0`) is required for real
+  runs. `enricher-version` is ignored since `v0.4.0`: `flowz` embeds the
+  analyzer.
 
 ## Onboarding
 
-**1. Get flowzhq credentials.** flowz issues you a GHCR username + `read:packages`
-token covering the three private packages (`flowz-ci`, `flowz-cli`, `fsg-enricher`),
-plus the tool versions to pin.
+**1. Get your Flowz credentials.** Flowz issues you a classic `read:packages`
+token, minted for you on its shared `flowz-dp` machine account, that reads
+`ghcr.io/flowzhq/flowz-cli` only (the one package; it carries both binaries). You
+need no GitHub account with Flowz. You also get a CI license file and the
+versions to pin.
 
 **2. Create the artifacts repo** (default name `.flowz-artifacts` in your org):
 
@@ -117,13 +120,13 @@ other members' eFSGs into the system view.
 artifacts repo only. This is separate from the flowzhq token by design: neither side
 holds both credentials.
 
-**4. Configure the source repo.** Set the flowzhq registry creds from step 1 and the
-artifacts PAT from step 3 on the repo that will run the action:
+**4. Configure the source repo.** Set the token and license from step 1 and the
+artifacts PAT from step 3 on the repo that will run the action (`gh secret set`
+prompts for the value, so it stays out of shell history):
 
 ```bash
-gh variable set FLOWZ_REGISTRY_USER  --body  "<GHCR username flowzhq gave you>"
-gh secret   set FLOWZ_REGISTRY_TOKEN --body  "<GHCR read:packages token flowzhq gave you>"
-gh secret   set FLOWZ_ARTIFACTS_TOKEN --body "<your-org PAT, contents:write on .flowz-artifacts>"
+gh secret set FLOWZ_TOKEN            # the read:packages token Flowz gave you
+gh secret set FLOWZ_ARTIFACTS_TOKEN  # your-org PAT, contents:write on .flowz-artifacts
 base64 -w0 license.json | gh secret set FLOWZ_LICENSE
 ```
 
@@ -135,7 +138,7 @@ scan path, or extra change-detection excludes.
 
 | Secret | Input | What it is |
 | --- | --- | --- |
-| `FLOWZ_REGISTRY_TOKEN` | `registry-token` | read:packages token Flowz issued you |
+| `FLOWZ_TOKEN` | `registry-token` | read:packages token Flowz issued you; reads `ghcr.io/flowzhq/flowz-cli` only |
 | `FLOWZ_ARTIFACTS_TOKEN` | `artifacts-token` | your-org PAT, contents:write on the artifacts repo |
 | `FLOWZ_LICENSE` | `license` | the CI license file Flowz issued you |
 
@@ -161,8 +164,7 @@ writes the decoded file to `$RUNNER_TEMP` with mode 0600, exports its path as
 - GitHub-hosted **linux/amd64** runners.
 - The action installs `oras` itself (via `oras-project/setup-oras`) and uses it
   to pull the Flowz binaries from `ghcr.io` — your runner needs network access
-  to `ghcr.io`, and your `registry-token` must have `read:packages` on the
-  three packages.
+  to `ghcr.io`, and your `registry-token` must read `ghcr.io/flowzhq/flowz-cli`.
 - The artifacts repo and its `config` branch must exist before the first run
   (step 2 above) — the action errors with an onboarding message rather than
   auto-creating repos.
@@ -175,12 +177,14 @@ writes the decoded file to `$RUNNER_TEMP` with mode 0600, exports its path as
 
 | Input | Required | Notes |
 | --- | --- | --- |
-| `registry-user` / `registry-token` | yes | flowzhq GHCR creds (read:packages) |
+| `registry-token` | yes | the read:packages token Flowz issued you (secret `FLOWZ_TOKEN`) |
+| `registry-user` | no (`flowz-dp`) | GHCR ignores it for a token |
 | `artifacts-token` | yes (real runs) | customer-org PAT, contents:write on the artifacts repo |
 | `license` | yes (real runs) | the CI license file, base64 or raw JSON, from a secret (see Secrets) |
 | `artifacts-repo` | no | default `<owner>/.flowz-artifacts` |
-| `flowz-ci-version` | no (`latest`) | pin in production |
-| `scanner-version` / `enricher-version` | yes (real runs) | pinned GHCR tags |
+| `flowz-ci-version` | no (the version this action tag was tested with) | `vX.Y.Z` |
+| `scanner-version` | yes (real runs) | the `flowz` version, `vX.Y.Z` ≥ `v0.5.0` |
+| `enricher-version` | no | deprecated, ignored |
 | `scan-path` | no (`.`) | scan root |
 | `scan-mode` | no | override scan mode: `single` \| `monorepo` \| `components`; blank uses `.flowz.yml` (default `monorepo`). Requires `flowz-ci >= v0.5.0` |
 | `skip-change-check` | no (`false`) | run even for doc-only changes |
@@ -197,8 +201,8 @@ lands in the job's step summary.
 
 ```yml
 # on branch-<pr-source-branch>
-repos/<repo>/fsg/<scanner-output>.json.gz
-repos/<repo>/efsg/<base>.efsg.json.gz
+repos/<repo>/fsg/scan-<idx>-<name>.json.gz        # .flowz-empty for a repo with no Go code
+repos/<repo>/efsg/scan-<idx>-<name>.efsg.json.gz
 systems/<system>/system-view.json
 # on the config branch
 systems.yaml

@@ -6,11 +6,14 @@ The **public** home for Flowz's GitHub Actions, one action per subfolder,
 referenced as `uses: flowzhq/github-actions/<action-name>@<tag>`. It exists
 because GitHub cannot resolve a `uses:` reference to a private repo from
 another repo (even same-org), so the action *recipes* must be public — but the
-recipes are deliberately thin: they pull private, pre-built binaries from GHCR
-(gated by flowzhq-issued `read:packages` tokens) and shell out to them. All
-real product logic stays in the private engine repos: `flowzhq/flowz-app`
-(scanner), `flowzhq/fsg-enricher` (enricher), `flowzhq/flowz-ci-integration`
-(the `flowz-ci` orchestrator). See ADR-001.
+recipes are deliberately thin: they pull private, pre-built binaries from the
+one GHCR package `ghcr.io/flowzhq/flowz-cli` (gated by one classic
+`read:packages` token per customer, minted on the shared `flowz-dp` machine
+account, which has Read on that package only; no per-customer accounts) and
+shell out to them. All real product logic
+stays in the private engine repos: `flowzhq/flowz-app` (`flowz`, analyzer
+embedded) and `flowzhq/flowz-ci-integration` (the `flowz-ci` orchestrator). See
+ADR-001.
 
 There is nothing to build here — it's YAML + bash + docs. No Makefile. The one
 test, run after touching `write-license.sh`:

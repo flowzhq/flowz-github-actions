@@ -1,6 +1,7 @@
 # ADR-001 — Public thin-wrapper repo for Flowz's GitHub Actions
 
-**Status:** Accepted (2026-07-04)
+**Status:** Accepted (2026-07-04) — the recipe now pulls one package,
+`ghcr.io/flowzhq/flowz-cli` (both binaries), instead of the three named below
 
 ## Context
 

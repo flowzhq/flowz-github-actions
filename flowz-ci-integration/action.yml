@@ -6,9 +6,9 @@ branding:
   color: "purple"
 
 # Composite action: everything runs on the CALLER's runner in one `uses:` step.
-# The private flowz-ci / flowz (scanner) / fsg-enricher binaries are pulled from
-# GHCR with a flowzhq-issued read:packages token (ADR-002) — the token is the
-# access boundary; this public recipe carries no credentials. Artifacts-repo
+# The private flowz-ci and flowz binaries are pulled from the one GHCR package
+# ghcr.io/flowzhq/flowz-cli with the read:packages token Flowz issued — the
+# token is the access boundary; this public recipe carries no credentials. Artifacts-repo
 # writes use a separate customer-org PAT, never the workflow's GITHUB_TOKEN.
 #
 # The CALLER's job must check out the repo first with `fetch-depth: 0`
@@ -16,10 +16,11 @@ branding:
 
 inputs:
   registry-user:
-    description: "GHCR username for the flowzhq packages. Required unless flowz-ci-bin is set."
+    description: "GHCR username. GHCR ignores it for a personal access token; kept for compatibility."
     required: false
+    default: "flowz-dp"
   registry-token:
-    description: "flowzhq-issued GHCR token with read:packages on flowz-ci, flowz-cli, and fsg-enricher. Pass a secret. Required unless flowz-ci-bin is set."
+    description: "The classic read:packages token Flowz issued you (reads ghcr.io/flowzhq/flowz-cli). Pass a secret (secrets.FLOWZ_TOKEN). Required unless flowz-ci-bin is set."
     required: false
   artifacts-token:
     description: "Customer-org PAT with contents:write on the artifacts repo. Pass a secret. Required unless dry-run."
@@ -33,17 +34,18 @@ inputs:
     required: false
     default: ""
   flowz-ci-version:
-    description: "Tag of ghcr.io/flowzhq/flowz-ci. Pin a version in production; latest is a convenience mirror."
+    description: "flowz-ci version (vX.Y.Z), pulled as flowz-ci-<version>-linux-amd64 from ghcr.io/flowzhq/flowz-cli. Defaults to the version this action tag was tested with."
     required: false
-    default: "latest"
+    default: "v0.6.0"
   scanner-version:
-    description: "Pinned tag of ghcr.io/flowzhq/flowz-cli (e.g. v0.4.0). Required for real runs; only dry-run works without it."
+    description: "flowz CLI version (vX.Y.Z, at least v0.5.0), pulled as <version>-linux-amd64 from ghcr.io/flowzhq/flowz-cli. It embeds the analyzer. Required for real runs; only dry-run works without it."
     required: false
     default: ""
   enricher-version:
-    description: "Pinned tag of ghcr.io/flowzhq/fsg-enricher (e.g. v0.1.0; the -linux-amd64 platform tag is pulled). Required for real runs; only dry-run works without it."
+    description: "Ignored: flowz embeds the analyzer since flowz-ci v0.6.0."
     required: false
     default: ""
+    deprecationMessage: "enricher-version is ignored: the analyzer ships inside flowz (scanner-version). Remove it."
   scan-path:
     description: "Path to scan, relative to the workspace."
     required: false
@@ -106,7 +108,6 @@ runs:
         REGISTRY_TOKEN: ${{ inputs.registry-token }}
         FLOWZ_CI_VERSION: ${{ inputs.flowz-ci-version }}
         SCANNER_VERSION: ${{ inputs.scanner-version }}
-        ENRICHER_VERSION: ${{ inputs.enricher-version }}
         DRY_RUN: ${{ inputs.dry-run }}
       run: bash "${{ github.action_path }}/scripts/bootstrap.sh"
 
