@@ -1,10 +1,10 @@
-# flowzhq/github-actions
+# flowzhq/flowz-github-actions
 
 Public home for Flowz's GitHub Actions. Each action lives in its own subfolder
 and is referenced as:
 
 ```yaml
-uses: flowzhq/github-actions/<action-name>@<tag>
+uses: flowzhq/flowz-github-actions/<action-name>@<tag>
 ```
 
 Tags (`vX.Y.Z`) cover the **whole repo** — a tag pins every action at that
