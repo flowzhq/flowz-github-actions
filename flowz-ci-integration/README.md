@@ -63,7 +63,7 @@ jobs:
         with:
           fetch-depth: 0 # change detection needs the merge-base with the target branch
 
-      - uses: flowzhq/github-actions/flowz-ci-integration@v0.4.0
+      - uses: flowzhq/flowz-github-actions/flowz-ci-integration@v0.4.0
         with:
           registry-token: ${{ secrets.FLOWZ_TOKEN }}
           artifacts-token: ${{ secrets.FLOWZ_ARTIFACTS_TOKEN }}
@@ -82,7 +82,7 @@ that configures its own `user.name`/`user.email` first still wins.
 
 **Version pinning.** Pin everything in production:
 
-- the action itself — `flowzhq/github-actions/flowz-ci-integration@vX.Y.Z`
+- the action itself — `flowzhq/flowz-github-actions/flowz-ci-integration@vX.Y.Z`
   (tags cover this whole repo); don't track `main`,
 - `flowz-ci-version` / `scanner-version` — the versions Flowz support gives you.
   `flowz-ci-version` defaults to the one the action tag was tested with;
